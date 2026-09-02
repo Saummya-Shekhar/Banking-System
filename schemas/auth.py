@@ -24,3 +24,8 @@ class LoginResponse(BaseModel):
 
 class CreateAccountRequest(BaseModel):
     pin: Pin
+
+class ChangePinRequest(BaseModel):
+    current_pin: Pin
+    new_pin: Pin
+

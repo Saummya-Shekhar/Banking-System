@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from schemas.auth import SignupRequest, LoginRequest
+from schemas.auth import SignupRequest, LoginRequest, ChangePinRequest
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from database import get_db
@@ -9,9 +9,9 @@ from utils.encrypt import hash_password
 from schemas.Enums import Roles
 from utils.encrypt import verify_password
 from utils.auth import get_current_user
-from utils.auth import create_access_token, decode_access_token
-from models.models import Account
-from utils.encrypt import generate_account_number
+from utils.auth import create_access_token
+from fastapi import Depends
+from utils.business_logic import get_specific_account
 
  
 router = APIRouter()
@@ -69,6 +69,37 @@ def Login(login: LoginRequest, db: Session = Depends(get_db)):
          "access_token": token,
          "token_type": "Bearer"
     }
+
+@router.post("/{account_number}/change-pin")
+def ChangePin(request: ChangePinRequest, account_number: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    account = get_specific_account(user, account_number, db)
+    if not account:
+        raise HTTPException(
+            status_code=401,
+            detail="Account not found"
+        )
+
+    if not verify_password(request.current_pin, account.hashed_pin):
+        raise HTTPException(
+            status_code=401,
+            detail="Wrong account number or pin"
+        )
+
+    account.hashed_pin = hash_password(request.new_pin)
+    
+    db.commit()
+    db.refresh(account)
+
+    return {
+        "message": "Pin Changed Successfully!"
+    }
+
+
+
+
+
+    
+     
 
 
 
