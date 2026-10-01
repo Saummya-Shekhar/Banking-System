@@ -30,12 +30,7 @@ def get_all_account(user: User, db: Session):
     return accounts
 
 def get_all_transaction(account_number: str, user: User, db: Session):
-    account = db.query(Account).filter(Account.owner_id == user.id, Account.account_number == account_number).first()
-    if not account:
-        raise HTTPException(
-            status_code=404,
-            detail="Account Not Found"
-        )
+    account = get_specific_account(user, account_number, db)
 
     transactions = db.query(Transaction).filter(or_(Transaction.sender_account_id == account.id, Transaction.receiver_account_id == account.id)).order_by(Transaction.timestamp.desc()).all()
     return transactions

@@ -45,8 +45,7 @@ class Account(Base):
     account_number = Column(String(20), unique=True, nullable=False, index=True)
     balance = Column(Float, nullable=True, default=0)
     hashed_pin = Column(String(255), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
-
+   
 
     user = relationship(
         "User",
