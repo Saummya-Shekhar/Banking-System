@@ -68,7 +68,7 @@ def deposit(account_number: str, info: DepositRequest, user: User = Depends(get_
     
 
 @router.post("/{account_number}/withdraw")
-def deposit(account_number: str, info: DepositRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def withdraw(account_number: str, info: DepositRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     account = get_specific_account(user, account_number, db)
     if not verify_password(info.pin, account.hashed_pin):
         slip = create_transaction_slip(db=db, transaction_type=Transaction_Type.WITHDRAW, transaction_status=Transaction_Status.FAILED, sender_id=user.id, receiver_id=None, amount=info.amount)

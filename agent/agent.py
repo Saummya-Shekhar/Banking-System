@@ -2,14 +2,17 @@ from openai import OpenAI
 from config import OPENROUTER_API_KEY as API_KEY
 import json
 from config import SYSTEM_PROMPT, MAX_ITERATIONS
-from agent.tools import Tools, TOOL_MAP
+from agent.tools import TOOL_MAP, TOOLS
 from models.models import User
 from sqlalchemy.orm import Session
+from tools import ReadAndWriteTools, ReadOnlyTools
+
 
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=API_KEY
 )
+
 history = []
 
 history.append({
@@ -17,10 +20,17 @@ history.append({
     "content": SYSTEM_PROMPT
 })
 
-def execute_tool(item, db:Session, user: User):
+
+def execute_tool(
+    item,
+    db: Session,
+    user: User,
+    pin: str | None = None
+):
 
     try:
         arguments = json.loads(item.arguments)
+
     except json.JSONDecodeError:
 
         return {
@@ -32,6 +42,7 @@ def execute_tool(item, db:Session, user: User):
         }
 
     if item.name not in TOOL_MAP:
+
         return {
             "type": "function_call_output",
             "call_id": item.call_id,
@@ -41,7 +52,17 @@ def execute_tool(item, db:Session, user: User):
         }
 
     try:
-        result = TOOL_MAP[item.name](**arguments, db=db, user=user)
+
+        if item.name in ReadAndWriteTools:
+
+            if pin is None:
+                raise ValueError("PIN is required for deposit.")
+
+            result = TOOL_MAP[item.name](**arguments, pin=pin, db=db, user=user)
+
+        else:
+
+            result = TOOL_MAP[item.name](**arguments, db=db, user=user)
 
     except Exception as e:
 
@@ -52,7 +73,7 @@ def execute_tool(item, db:Session, user: User):
         print(f"Arguments: {item.arguments}")
         traceback.print_exc()
         print("================================\n")
-        
+
         result = {
             "error": f"Tool execution failed: {str(e)}"
         }
@@ -64,11 +85,11 @@ def execute_tool(item, db:Session, user: User):
     }
 
 
-def run_agent(prompt: str, db: Session,user: User):
+def run_agent(prompt: str, db: Session, user: User, pin: str | None = None):
 
     history.append({
-    "role": "user",
-    "content": prompt
+        "role": "user",
+        "content": prompt
     })
 
     for iteration in range(MAX_ITERATIONS):
@@ -76,10 +97,9 @@ def run_agent(prompt: str, db: Session,user: User):
         response = client.responses.create(
             model="openrouter/free",
             input=history,
-            tools=Tools
+            tools=TOOLS
         )
 
-        # Add the model's output to conversation history
         history.extend(response.output)
 
         tool_calls = [
@@ -88,17 +108,11 @@ def run_agent(prompt: str, db: Session,user: User):
             if item.type == "function_call"
         ]
 
-        # --------------------------------
-        # No tool calls
-        # --------------------------------
 
         if not tool_calls:
             final_response = response
             break
 
-        # --------------------------------
-        # Execute tools
-        # --------------------------------
 
         tool_outputs = []
 
@@ -107,13 +121,15 @@ def run_agent(prompt: str, db: Session,user: User):
             print(f"Tool: {item.name}")
             print(f"Arguments: {item.arguments}")
 
-            tool_output = execute_tool(item, db, user)
+            tool_output = execute_tool(
+                item=item,
+                db=db,
+                user=user,
+                pin=pin
+            )
 
             tool_outputs.append(tool_output)
 
-        # --------------------------------
-        # Send tool results back to LLM
-        # --------------------------------
 
         history.extend(tool_outputs)
 
@@ -121,17 +137,14 @@ def run_agent(prompt: str, db: Session,user: User):
 
         final_response = None
 
-    if response:
+    if final_response:
+
         return {
-            "output": response.output_text
+            "output": final_response.output_text
         }
-    
+
     else:
+
         return {
             "output": "Agent stopped because maximum iterations were reached."
         }
-
-        
-
-
-

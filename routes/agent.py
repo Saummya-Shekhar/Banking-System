@@ -13,7 +13,7 @@ from models.models import Account
 from utils.business_logic import get_specific_account, get_all_account, get_all_transaction, get_specific_transaction
 from utils.encrypt import hash_password, generate_account_number
 from utils.business_logic import create_transaction_slip
-from schemas.agent import ReadOnlyAgentRquest
+from schemas.agent import ReadOnlyAgentRquest, ReadAndWriteAgentRequest
 from agent.agent import run_agent
 
 router = APIRouter()
@@ -21,5 +21,12 @@ router = APIRouter()
 @router.get("/")
 def agent(prompt: ReadOnlyAgentRquest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return run_agent(prompt.message, db, user)
+
+@router.post("/")
+def agent(prompt: ReadAndWriteAgentRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return run_agent(prompt.message, db, user, prompt.pin)
+
+
+
 
 
