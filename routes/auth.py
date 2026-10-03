@@ -71,7 +71,7 @@ def Login(login: LoginRequest, db: Session = Depends(get_db)):
     }
 
 @router.post("/{account_number}/change-pin")
-def ChangePin(request: ChangePinRequest, account_number: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def ChangePin(request: ChangePinRequest, account_number: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     account = get_specific_account(user, account_number, db)
     if not account:
         raise HTTPException(

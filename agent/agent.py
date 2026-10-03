@@ -5,7 +5,7 @@ from config import SYSTEM_PROMPT, MAX_ITERATIONS
 from agent.tools import TOOL_MAP, TOOLS
 from models.models import User
 from sqlalchemy.orm import Session
-from tools import ReadAndWriteTools, ReadOnlyTools
+from .tools import ReadAndWriteTools, ReadOnlyTools
 
 
 client = OpenAI(
@@ -95,7 +95,7 @@ def run_agent(prompt: str, db: Session, user: User, pin: str | None = None):
     for iteration in range(MAX_ITERATIONS):
 
         response = client.responses.create(
-            model="openrouter/free",
+            model="poolside/laguna-s-2.1:free",
             input=history,
             tools=TOOLS
         )
@@ -138,10 +138,13 @@ def run_agent(prompt: str, db: Session, user: User, pin: str | None = None):
         final_response = None
 
     if final_response:
+        print(f"Input Tokens: {final_response.usage.input_tokens}")
+        print(f"Output Tokens: {final_response.usage.output_tokens}")
 
         return {
             "output": final_response.output_text
         }
+
 
     else:
 
