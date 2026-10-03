@@ -75,7 +75,7 @@ TOOL = {
                 "description": "Amount of money to deposit"
             },
         },
-        "required": ["account_number","receiver_account_number" "amount"],
+        "required": ["account_number","receiver_account_number", "amount"],
         "additionalProperties": False
     }
 }

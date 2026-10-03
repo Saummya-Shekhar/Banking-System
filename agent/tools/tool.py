@@ -23,5 +23,5 @@ TOOL_MAP = {
 
 TOOLS = [getAccountTool, getTransactionTool, depositMoneyTool, withdrawMoneyTool, transMoneyTool]
 ReadAndWriteTools = ["deposit_money", "withdraw_money", "transfer_money"]
-ReadOnlyTools = ["get_account_details", "get_trasaction_history"]
+ReadOnlyTools = ["get_account_details", "get_transaction_history"]
 

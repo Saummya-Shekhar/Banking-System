@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-SECRET_KEY = os.getenv("SECRET_KEY", "Alakazam1238")
+SECRET_KEY = os.getenv("SECRET_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 DB_URL = os.getenv("DB_URL")
 MAX_ITERATIONS = 5

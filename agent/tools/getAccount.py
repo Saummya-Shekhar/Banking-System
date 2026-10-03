@@ -8,7 +8,6 @@ def get_account_details(account_number: str, db: Session, user: User):
 
     return [
         {
-            "account_id": account.id,
             "account_number": account.account_number,
             "balance": account.balance,
         }
