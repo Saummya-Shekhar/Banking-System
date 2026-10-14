@@ -5,7 +5,7 @@ load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 DB_URL = os.getenv("DB_URL")
-MAX_ITERATIONS = 5
+MAX_ITERATIONS = 10
 SYSTEM_PROMPT = """
     You are the Banking Assistant for a personal banking API.
 
