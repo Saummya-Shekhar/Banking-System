@@ -1,136 +1,173 @@
-# Banking System — Codebase Summary
+# Banking System — Current Codebase Summary
 
-Generated via CodeGraph exploration of the FastAPI banking system.
+This project is a FastAPI-based banking application with user authentication, bank account management, transaction handling, and a conversational agent that can read and perform banking actions using OpenRouter-backed LLM tools.
 
-## App Entry (`main.py`)
+## Application entry point
+
+The app is created in `main.py` and registers three routers:
 
 ```python
 app = FastAPI()
-app.include_router(Account_Router, prefix="/accounts")  # routes/accounts.py
-app.include_router(Auth_Router, prefix="/auth")         # routes/auth.py
+
+app.include_router(Account_Router, prefix="/accounts")
+app.include_router(Auth_Router, prefix="/auth")
+app.include_router(Agent_Router, prefix="/agent")
 ```
 
----
-
-## Routes
-
-### `routes/auth.py` (prefix `/auth`)
-
-| Method | Path | Function | Description |
-|---|---|---|---|
-| POST | `/auth/signup` | `signup(signup: SignupRequest, db)` | Creates a new `User` (rejects duplicate username/email), role defaults to `Roles.USER` |
-| POST | `/auth/login` | `Login(login: LoginRequest, db)` | Verifies credentials, returns JWT access token |
-
-### `routes/accounts.py` (prefix `/accounts`)
-
-| Method | Path | Function | Response Model | Description |
-|---|---|---|---|---|
-| POST | `/accounts/` | `create_account(info: CreateAccountRequest, user, db)` | — | Creates an `Account` for the current user with a generated account number and hashed PIN |
-| GET | `/accounts/{account_number}` | `get_account_details(account_number, user, db)` | `AccountSummary` | Fetch a single account owned by the user |
-| GET | `/accounts/` | `get_all_accounts(user, db)` | `list[AccountSummary]` | List all accounts owned by the user |
-| POST | `/accounts/{account_number}/deposit` | `deposit(account_number, info: DepositRequest, user, db)` | `BasicResponse` | Deposits funds; validates PIN; logs a `Transaction` slip (success/failed) |
-| POST | `/accounts/{account_number}/withdraw` | `deposit(account_number, info: DepositRequest, user, db)` *(shadowed name — actually withdraw logic)* | `BasicResponse` | Withdraws funds; validates PIN and balance; logs a `Transaction` slip |
-| POST | `/accounts/{account_number}/transfer` | `transfer(account_number, info: TransferRequest, user, db)` | `BasicResponse` | Transfers funds between accounts; validates receiver, PIN, and balance; logs a `Transaction` slip |
-| GET | `/accounts/{account_number}/transactions` | `get_all_transactions(account_number, user, db)` | `list[TransactionSummary]` | List all transactions (sent or received) for an account |
-| GET | `/accounts/{account_number}/transactions/{transaction_id}` | `get_specific_transactions(account_number, transaction_id, user, db)` | `TransactionSummary` | Fetch one specific transaction |
-
-> Note: the withdraw endpoint's handler function is also named `deposit` (name collision with the deposit handler above) — same file, different route decorator.
+This means the API exposes account endpoints, auth endpoints, and agent endpoints under separate prefixes.
 
 ---
 
-## Functions
+## Authentication routes (`/auth`)
 
-### `utils/business_logic.py`
+From `routes/auth.py`:
 
-- `get_specific_account(user, account_number, db)` — fetches a user-owned `Account` by number, 401 if not found
-- `get_all_account(user, db)` — fetches all accounts owned by user, 401 if none
-- `get_all_transaction(account_number, user, db)` — fetches all transactions (sent/received) for an account, ordered by timestamp desc
-- `get_specific_transaction(account_number, transaction_id, user, db)` — fetches one transaction by id scoped to the account
-- `create_transaction_slip(db, amount, transaction_type, transaction_status, sender_id=None, receiver_id=None)` — builds and stages a `Transaction` row (does not commit)
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/auth/signup` | Register a new user with username, email, DOB, and password |
+| POST | `/auth/login` | Validate credentials and return a JWT access token |
 
-### `utils/auth.py`
+The JWT flow is implemented in `utils/auth.py`:
 
-- `create_access_token(user) -> str` — signs a JWT (HS256) with `sub`, `role`, 30-min expiry
-- `decode_access_token(token)` — verifies/decodes JWT, raises 401 on invalid token
-- `get_current_user(token, db) -> User` — FastAPI dependency resolving the authenticated user from the bearer token
-- `require_role(role)` — dependency factory returning a `checker(user)` that enforces a specific `Roles` value (403 if mismatched)
-- `oAuth2Scheme` — `OAuth2PasswordBearer(tokenUrl="/auth/login")`
-- `ALGORITHM = "HS256"`
+- `create_access_token(user)` creates a signed token with `HS256`
+- `decode_access_token(token)` validates and decodes the token
+- `get_current_user(token, db)` resolves the currently authenticated `User`
+- `require_role(role)` enforces role-based access restrictions
+- `oAuth2Scheme` is configured with `tokenUrl="/auth/login"`
 
-### `utils/encrypt.py`
-
-- `hash_password(password) -> str` — hashes via `pwdlib` recommended hasher
-- `verify_password(password, hashed_password) -> bool`
-- `generate_transaction_id() -> str` — random UUID4
-- `generate_account_number() -> str` — `"ACC" + 7-digit random suffix`
-- `password_hasher = PasswordHash.recommended()`
+Password hashing and verification are handled in `utils/encrypt.py` using the `pwdlib` password hasher.
 
 ---
 
-## Schemas (Pydantic)
+## Account routes (`/accounts`)
 
-### `schemas/auth.py`
+From `routes/accounts.py`:
 
-| Class | Fields |
-|---|---|
-| `SignupRequest` | `username: str`, `email: EmailStr`, `dob: date`, `password: str` |
-| `LoginRequest` | `username: str`, `password: str` |
-| `LoginResponse` | `access_token: str`, `token_type: str` |
-| `CreateAccountRequest` | `pin: Pin` (4-digit string) |
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/accounts/` | Create a new account for the authenticated user |
+| GET | `/accounts/{account_number}` | Fetch a single account owned by the current user |
+| GET | `/accounts/` | List all accounts for the current user |
+| POST | `/accounts/{account_number}/deposit` | Deposit money into an account with PIN validation |
+| POST | `/accounts/{account_number}/withdraw` | Withdraw funds after checking PIN and sufficient balance |
+| POST | `/accounts/{account_number}/transfer` | Transfer funds to another account after validation |
+| GET | `/accounts/{account_number}/transactions` | List all transactions related to an account |
+| GET | `/accounts/{account_number}/transactions/{transaction_id}` | Fetch one specific transaction |
 
-### `schemas/accounts.py`
+The business rules live in `utils/business_logic.py` and include:
 
-| Class | Fields |
-|---|---|
-| `AccountSummary` | `account_number: str`, `balance: float` *(from_attributes)* |
-| `CreateAccountRequest` | `pin: Pin` |
-| `UserResponse` | `id: int`, `username: str`, `email: EmailStr` |
-| `DepositRequest` | `amount: float (>0)`, `pin: Pin` |
-| `WithdrawRequest` | `amount: float (>0)`, `pin: Pin` |
-| `TransferRequest` | `receiver_account_number: str`, `amount: float (>0)`, `pin: Pin` |
-| `TransactionSummary` | `transaction_id: str`, `amount: float`, `type: Transaction_Type`, `status: Transaction_Status`, `timestamp: datetime`, `receiver_account_number: str \| None`, `sender_account_number: str \| None` *(from_attributes)* |
-| `BasicResponse` | `message: str`, `balance: float`, `slip: TransactionSummary` *(from_attributes)* |
+- `get_specific_account(user, account_number, db)`
+- `get_all_account(user, db)`
+- `get_all_transaction(account_number, user, db)`
+- `get_specific_transaction(account_number, transaction_id, user, db)`
+- `create_transaction_slip(...)` to stage a transaction record before commit
 
-`Pin = Annotated[str, Field(pattern=r"^\d{4}$")]` (defined in both `schemas/auth.py` and `schemas/accounts.py`)
-
-### `schemas/Enums.py`
-
-| Enum | Values |
-|---|---|
-| `Roles` | `USER`, `ADMIN` |
-| `Transaction_Type` | `DEPOSIT`, `WITHDRAW`, `TRANSFER` |
-| `Transaction_Status` | `SUCCESS`, `PENDING`, `FAILED` |
+Each account operation validates ownership and uses a PIN check before the transaction is accepted.
 
 ---
 
-## Models (SQLAlchemy — `models/models.py`)
+## Agent routes (`/agent`)
 
-### `User` (table: `users`)
-- `id: int` (PK)
-- `username: str(50)` (unique)
-- `email: str(255)` (unique)
-- `dob: Date`
-- `hashed_password: str(255)`
-- `role: Enum(Roles)`
-- `accounts` → relationship to `Account` (cascade delete-orphan)
+The project also contains an AI-powered banking agent that can read account information and perform write actions.
 
-### `Account` (table: `accounts`)
-- `id: int` (PK)
-- `owner_id: int` (FK → `users.id`)
-- `account_number: str(20)` (unique, indexed)
-- `balance: float` (default 0)
-- `hashed_pin: str(255)`
-- `user` → relationship to `User`
-- `sent_transactions` / `received_transactions` → relationships to `Transaction`
+From `routes/agent.py`:
 
-### `Transaction` (table: `transactions`)
-- `id: int` (PK)
-- `transaction_id: str(50)` (unique, indexed)
-- `type: Enum(Transaction_Type)`
-- `status: Enum(Transaction_Status)`
-- `timestamp: DateTime(timezone=True)` (default now UTC)
-- `sender_account_id: int` (FK → `accounts.id`, nullable)
-- `receiver_account_id: int` (FK → `accounts.id`, nullable)
-- `amount: float`
-- `sender_account` / `receiver_account` → relationships to `Account`
-- `sender_account_number` / `receiver_account_number` → computed properties resolving the related account's number
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/agent/` | Run a read-only banking query through the agent |
+| POST | `/agent/` | Run a write-capable agent request, including a user PIN |
+
+The agent is wired to OpenRouter in `agent/agent.py`:
+
+- `run_agent(prompt, db, user, pin=None)` stores the prompt in conversation history
+- it sends the full history plus tool definitions to the OpenAI-compatible responses API
+- it processes any returned function calls, executes the selected tool, and appends tool output back into the conversation loop
+- it stops once the model returns a final answer or after the configured max iteration limit
+
+Tool support is defined in `agent/tools/tool.py` and the tool map includes:
+
+- `get_account_details`
+- `get_transaction_history`
+- `deposit_money`
+- `withdraw_money`
+- `transfer_money`
+
+These functions are exposed to the LLM as callable tools for account reads and financial actions.
+
+---
+
+## Data models
+
+The SQLAlchemy models are in `models/models.py`.
+
+### `User`
+
+Table: `users`
+
+- `id`: primary key
+- `username`: unique, max length 50
+- `email`: unique, max length 255
+- `dob`: date of birth
+- `hashed_password`: hashed user password
+- `role`: enum value from `Roles`
+- `accounts`: relationship to `Account`
+
+### `Account`
+
+Table: `accounts`
+
+- `id`: primary key
+- `owner_id`: foreign key to `users.id`
+- `account_number`: unique account identifier
+- `balance`: float balance, defaults to 0
+- `hashed_pin`: stored PIN hash
+- `user`: relationship to owner
+- `sent_transactions` and `received_transactions`: transaction relationships
+
+### `Transaction`
+
+Table: `transactions`
+
+- `id`: primary key
+- `transaction_id`: unique transaction id
+- `type`: enum from `Transaction_Type`
+- `status`: enum from `Transaction_Status`
+- `timestamp`: UTC timestamp
+- `sender_account_id`: nullable FK to `accounts.id`
+- `receiver_account_id`: nullable FK to `accounts.id`
+- `amount`: transaction amount
+- `sender_account` / `receiver_account`: relationships
+- computed properties `sender_account_number` and `receiver_account_number` provide the related account numbers
+
+---
+
+## Enums and schemas
+
+The enum definitions are in `schemas/Enums.py`:
+
+- `Roles`: `USER`, `ADMIN`
+- `Transaction_Type`: `DEPOSIT`, `WITHDRAW`, `TRANSFER`
+- `Transaction_Status`: `SUCCESS`, `PENDING`, `FAILED`
+- `MessageRole`: used for conversation/message metadata
+
+The core request/response schemas are defined under `schemas/`:
+
+- `schemas/auth.py`: signup/login payloads and account creation input
+- `schemas/accounts.py`: account summaries, deposits, withdrawals, transfers, and transaction summaries
+- `schemas/agent.py`: request models for the agent endpoints
+
+A common validation rule is the `Pin` type, which is a 4-digit string pattern enforced via Pydantic.
+
+---
+
+## Overall architecture
+
+The system follows a layered backend pattern:
+
+1. `routes/` handles HTTP endpoints and dependency injection
+2. `utils/` contains authentication, encryption, and business logic helpers
+3. `models/` defines database schema and relationships
+4. `schemas/` validates request and response payloads
+5. `agent/` extends the app with an OpenRouter-powered intelligent banking assistant that can call account management tools
+
+This gives the project both a standard REST banking API and an AI-assisted interface for querying or acting on account data.

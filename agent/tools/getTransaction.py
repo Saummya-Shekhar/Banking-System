@@ -2,8 +2,6 @@ from models.models import User
 from utils.business_logic import get_specific_account, get_all_transaction
 from sqlalchemy.orm import Session
 
-
-
 def get_transaction_history(account_number: str, db: Session, user: User):
     account = get_specific_account(user,account_number,db)
     transactions = get_all_transaction(account_number,user,db)

@@ -13,3 +13,9 @@ class Transaction_Status(Enum):
     SUCCESS = "SUCCESS"
     PENDING = "PENDING"
     FAILED = "FAILED"
+
+class MessageRole(Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+    TOOL = "tool"
+
