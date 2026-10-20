@@ -29,3 +29,12 @@ class ChangePinRequest(BaseModel):
     current_pin: Pin
     new_pin: Pin
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str 
+    new_password: str
+
+class ChangeProfileRequest(BaseModel):
+    username: str | None = None
+    email: EmailStr | None = None
+
+

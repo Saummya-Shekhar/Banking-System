@@ -49,7 +49,6 @@ class TransactionSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-
 class BasicResponse(BaseModel):
     message: str 
     balance: float 
